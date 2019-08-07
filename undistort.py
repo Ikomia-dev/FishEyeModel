@@ -1,4 +1,4 @@
-import fisheye_module
+from UndistortFishEye import fisheye_module
 import argparse
 
 # Python script to launch undistort process from terminal
@@ -11,12 +11,16 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        "calibration_file_path",
+        "-c",
+        dest="calibration_file_path",
+        default="calibration.txt",
         help="Path of the calibration file"
     )
 
     parser.add_argument(
-        "output_image_path",
+        "-o",
+        dest="output_image_path",
+        default="undistort.png",
         help="Path where the result undistorted image will be saved"
     )
 
@@ -27,9 +31,6 @@ if __name__ == '__main__':
 
     if not args.calibration_file_path:
         raise RuntimeError("Calibration file path could not be empty")
-
-    if not args.output_image_path:
-        args.output_file_path = "undistort.png"
 
     k, d, dims = fisheye_module.load_calibration(args.calibration_file_path)
     undistorted_img = fisheye_module.undistort_from_file(args.source_image_path, k, d, dims)

@@ -1,4 +1,4 @@
-import fisheye_module
+from UndistortFishEye import fisheye_module
 import argparse
 
 
@@ -12,19 +12,24 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        "output_file_path",
+        "-o",
+        dest="output_file_path",
+        default="calibration.txt",
+        help="Path where the calibration file will be saved"
+    )
+
+    parser.add_argument(
+        "-s",
+        dest="save_detection",
+        default=False,
         help="Path where the calibration file will be saved"
     )
 
     args = parser.parse_args()
-
     if not args.image_folder:
         raise RuntimeError("Folder of calibration images is required")
 
-    if not args.output_file_path:
-        args.output_file_path = "calibration.txt"
-
-    k, d, dims = fisheye_module.calibrate(args.image_folder)
+    k, d, dims = fisheye_module.calibrate(args.image_folder, args.save_detection)
     print('----- Calibration results -----')
     print("Dimensions =" + str(dims))
     print("K = np.array(" + str(k.tolist()) + ")")
