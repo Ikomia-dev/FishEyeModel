@@ -252,6 +252,7 @@ def test_calibration():
     print("D = np.array(" + str(d.tolist()) + ")")
 
 # Tool function to test undistortion
+# Calibration file "calibration.txt" must be in the current folder
 def test_undistort():
     k, d, dims = load_calibration('calibration.txt')
 
@@ -278,6 +279,7 @@ def test_undistort():
     print("Undistort process finished successfully")
 
 # Tool function to test deformation measure on a specific image
+# Calibration file "calibration.txt" must be in the current folder
 def test_measure(img_path):
     src_image = cv2.imread(img_path)
     k, d, dims = load_calibration('calibration.txt')
@@ -286,7 +288,7 @@ def test_measure(img_path):
 
 if __name__ == '__main__':
     #test_measure('CalibImages/img14.png')
-    #test_chessboard_detection()
+    test_chessboard_detection()
     #test_calibration()
     #test_undistort()
 
