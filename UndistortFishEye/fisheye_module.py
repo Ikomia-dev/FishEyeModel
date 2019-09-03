@@ -7,31 +7,82 @@ import numpy as np
 # Size of the chessboard used for calibration
 CHESSBOARD_SIZE = (6, 9)
 
+# Calculate curvature for each horizontal and vertical curves from the chessboard
+# Return: curvature integral
+def chessboard_measure(corners):
+    cornersMat = np.reshape(corners, (-1, CHESSBOARD_SIZE[0], 2))
+    curvature_integral = 0
+    # Vertical curves
+    for k in range(CHESSBOARD_SIZE[1]):
+        dx_dt = np.gradient(cornersMat[k, :, 0])
+        dy_dt = np.gradient(cornersMat[k, :, 1])
+        d2x_dt2 = np.gradient(dx_dt)
+        d2y_dt2 = np.gradient(dy_dt)
+        curvature = np.abs(d2x_dt2 * dy_dt - dx_dt * d2y_dt2) / (dx_dt * dx_dt + dy_dt * dy_dt) ** 1.5
+        curvature_integral += np.sum(curvature)
+    # Horizontal curves
+    for k in range(CHESSBOARD_SIZE[0]):
+        dx_dt = np.gradient(cornersMat[:, k, 0])
+        dy_dt = np.gradient(cornersMat[:, k, 1])
+        d2x_dt2 = np.gradient(dx_dt)
+        d2y_dt2 = np.gradient(dy_dt)
+        curvature = np.abs(d2x_dt2 * dy_dt - dx_dt * d2y_dt2) / (dx_dt * dx_dt + dy_dt * dy_dt) ** 1.5
+        curvature_integral += np.sum(curvature)
+    return curvature_integral
 
 # Chessboard detection on the image loaded from the given file
-# If saveDetection==True an image with the result of the detection is save to the disk
+# If saveDetection==True an image with the result of the detection is saved to the disk
 # Return: success status (True or False), corners detected in image coordinates, size of the image
 def detect_chessboard(img_path, save_detection):
-    chessboard_flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK + cv2.CALIB_CB_NORMALIZE_IMAGE
-    subpix_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.01)
     img = cv2.imread(img_path)
-    img_shape = img.shape[:2]
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    ret, corners = cv2.findChessboardCorners(gray, CHESSBOARD_SIZE, chessboard_flags)
-
+    ret, corners, img_shape = detect_chessboard_img(img, save_detection)
     if ret == True:
-        # Refining corners position with sub-pixels based algorithm
-        cv2.cornerSubPix(gray, corners, (3, 3), (-1, -1), subpix_criteria)
-
         if save_detection:
-            cv2.drawChessboardCorners(img, CHESSBOARD_SIZE, corners, ret)
             chess_path = img_path.replace('.png', '_chess.jpg')
             cv2.imwrite(chess_path, img)
-    else:
-        print('Chessboard not detected in image ' + img_path)
 
     return ret, corners, img_shape
 
+# Chessboard detection on input opencv image
+# If showChessboard==True(default) we draw corners and lines on input image
+# Return: success status (True or False), corners detected in image coordinates, size of the image
+def detect_chessboard_img(img, showChessboard=True):
+    chessboard_flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK + cv2.CALIB_CB_NORMALIZE_IMAGE
+    subpix_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.01)
+    img_shape = img.shape[:2]
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    ret, corners = cv2.findChessboardCorners(gray, CHESSBOARD_SIZE, chessboard_flags)
+    if ret == True:
+        # Refining corners position with sub-pixels based algorithm
+        cv2.cornerSubPix(gray, corners, (3, 3), (-1, -1), subpix_criteria)
+        if showChessboard == True:
+            cv2.drawChessboardCorners(img, CHESSBOARD_SIZE, corners, ret)
+    else:
+        print('Chessboard not detected in image ')
+
+    return ret, corners, img_shape
+
+# Show deformation measure on source image and undistorted image
+# The less the better (no deformation means perfect straight lines which means 0 curvature)
+def deformation_measure(src_image, undistorted_img):
+    ret, corners1, _ = detect_chessboard_img(src_image)
+    if ret == False:
+        return
+    ret, corners2, _ = detect_chessboard_img(undistorted_img)
+    if ret == False:
+        return
+    m1 = chessboard_measure(corners1)
+    m2 = chessboard_measure(corners2)
+    r = (1-m2/m1)*100
+    print('Deformation measure on source image: ' + str(m1))
+    print('Deformation measure on undistorted image: ' + str(m2))
+    print('Correction rate in percent: ' + str(r))
+
+def evaluate(img_path, calibration_path):
+    src_image = cv2.imread(img_path)
+    k, d, dims = load_calibration(calibration_path)
+    undistorted_img = undistort(src_image, k, d, dims)
+    deformation_measure(src_image, undistorted_img)
 
 # Launch calibration process from all png images in the given folder
 # Return: calibration parameters K, D and image dimensions
@@ -173,7 +224,7 @@ def save_undistort_image(undistorted_img, img_path, suffix):
     filename, file_extension = os.path.splitext(filename)
     cv2.imwrite(save_folder + filename + suffix + file_extension, undistorted_img)
 
-
+# Tool function to test chessboard detection on all images in subfolder "CalibImages"
 def test_chessboard_detection():
     images = glob.glob('CalibImages/*.png')
     for filename in images:
@@ -183,7 +234,7 @@ def test_chessboard_detection():
         else:
             print('Chessboard not detected in image ' + filename)
 
-
+# Tool function to test calibration function on all images in subfolder "CalibImages"
 def test_calibration():
     k, d, dims = calibrate('CalibImages')
     print('----- Calibration results -----')
@@ -200,7 +251,7 @@ def test_calibration():
     print("K = np.array(" + str(k.tolist()) + ")")
     print("D = np.array(" + str(d.tolist()) + ")")
 
-
+# Tool function to test undistortion
 def test_undistort():
     k, d, dims = load_calibration('calibration.txt')
 
@@ -226,9 +277,16 @@ def test_undistort():
 
     print("Undistort process finished successfully")
 
+# Tool function to test deformation measure on a specific image
+def test_measure(img_path):
+    src_image = cv2.imread(img_path)
+    k, d, dims = load_calibration('calibration.txt')
+    undistorted_img = undistort(src_image, k, d, dims)
+    deformation_measure(src_image, undistorted_img)
 
 if __name__ == '__main__':
-    test_chessboard_detection()
+    #test_measure('CalibImages/img14.png')
+    #test_chessboard_detection()
     #test_calibration()
     #test_undistort()
 
